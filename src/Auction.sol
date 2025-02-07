@@ -2,18 +2,19 @@
 pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
-contract Auction is Ownable,ERC721 {
+contract Auction is Ownable, ERC721, ERC721Enumerable {
 
     error Auction__notStarted();
     error Auction__auctionEnded();
     error Auction__overSupply();
     error Auction__insufficientValue();
+    error Auction__withDrawFailed();
 
 
-    uint256 public constant TOTAL_SUPPLY = 10000;
+    uint256 public constant MAX_SUPPLY = 10000;
     uint256 public constant AUCTION_DURATION = 7 days;
     uint256 public constant AUCTION_START_PRICE = 1 ether;
     uint256 public constant AUCTION_FLOOR_PRICE = 0.01 ether;
@@ -22,7 +23,7 @@ contract Auction is Ownable,ERC721 {
 
     uint256 public auctionStartTime;
 
-    constructor() ERC721("Auction", "AUC") {
+    constructor() Ownable(msg.sender) ERC721("Auction", "AUC") {
         auctionStartTime = block.timestamp;
     }
 
@@ -59,11 +60,12 @@ contract Auction is Ownable,ERC721 {
             revert Auction__notStarted();
         }
 
-        if(TOTAL_SUPPLY <= totalSupply() + quantity) {
+        if(MAX_SUPPLY <= totalSupply() + quantity) {
             revert Auction__overSupply();
         }
 
         uint256 totalCost = getAuctionPrice() * quantity;
+        if(msg.value < totalCost) {
            revert Auction__insufficientValue();
         } 
 
@@ -72,6 +74,13 @@ contract Auction is Ownable,ERC721 {
             _mint(msg.sender, totalSupply() + i);
         } 
 
+    }
+
+    function withDraw() external onlyOwner {
+        (bool success, ) = msg.sender.call{value: address(this).balance}("");
+        if(!success){
+            revert Auction__withDrawFailed();
+        }
     }
 
 }
